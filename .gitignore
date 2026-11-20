@@ -4,3 +4,4 @@ data/*.tmp
 *.tar.gz
 .DS_Store
 .model-patch.yml
+state/
