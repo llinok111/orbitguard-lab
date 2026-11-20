@@ -43,7 +43,7 @@ or line-of-sight oracle — those are closed-form / parity tests.
 | Retained-radius ratio (median / mean) | **1.000 / 0.739** | 1.000 / 1.000 but invalid |
 | 100,000 constrained resolves, median | **226.69 ms** = 2.267 µs/query | brute force **1,498.95 ms** = 14.99 µs/query |
 | Cold start, same workload | 226.79 ms | 1,554.74 ms |
-| p95 / stddev (BVH) | 239.85 ms / 5.56 ms | 1,533.88 ms / 15.6 ms |
+| p95 / stddev (BVH) | 239.85 ms / 5.62 ms | 1,533.88 ms / 15.69 ms |
 | Margin slack, every non-fallback clamped pose | ≥ 0.52792 (worst = 0.52792) | — |
 | BVH vs brute, 5,000 random rays | identical hit/miss, max\|Δt\| = **0** | — |
 | Triangle-parity inside test vs closed-form box oracle, 500 points | **0 disagreements** | — |
@@ -53,7 +53,9 @@ or line-of-sight oracle — those are closed-form / parity tests.
 Raw numbers live in `bench/result.json`; nothing in this README is typed by hand.
 
 The speedup is modest because the scene has only 192 triangles — BVH build and traversal overhead
-is a large share at that size. The claim is exactly the measured 6.61×, not a projection.
+is a large share at that size. The claim is exactly the measured 6.61×, not a projection. Wall-clock
+numbers are host-specific; `node bench/bench.mjs` prints the numbers for your machine, and the
+correctness counts (the 0/0 and 369/1868 figures) are deterministic and do not depend on timing.
 
 ## Why the counts are trustworthy
 
