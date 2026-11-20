@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>orbitguard-lab — camera clearance you can recompute</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #0b0f14; color: #d7e2ee;
+    font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; overflow: hidden; }
+  #app { position: fixed; inset: 0; }
+  #hud { position: fixed; top: 14px; left: 14px; max-width: 360px; padding: 12px 14px;
+    background: rgba(8, 13, 20, 0.82); border: 1px solid #223044; border-radius: 8px; }
+  #hud h1 { margin: 0 0 6px; font-size: 14px; letter-spacing: 0.04em; color: #7fd1ff; }
+  #hud p { margin: 3px 0; color: #93a7bd; }
+  .row { display: flex; justify-content: space-between; gap: 12px; }
+  .v { color: #eaf3ff; }
+  .ok { color: #4ade80; } .bad { color: #f87171; } .warn { color: #fbbf24; }
+  #proof { margin-top: 9px; border-top: 1px solid #1e2a3a; padding-top: 8px; }
+  button { background: #16324a; color: #cfe9ff; border: 1px solid #2b5b80; border-radius: 5px;
+    padding: 5px 9px; font: inherit; cursor: pointer; }
+  button:hover { background: #1d4160; }
+  #legend { position: fixed; bottom: 12px; left: 14px; color: #6d8299; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.170.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="hud">
+  <h1>orbitguard-lab</h1>
+  <p>drag = orbit · wheel = desired radius · camera is constrained by the same <code>src/core.mjs</code></p>
+  <div class="row"><span>desired radius</span><span class="v" id="v-desired">–</span></div>
+  <div class="row"><span>actual radius</span><span class="v" id="v-actual">–</span></div>
+  <div class="row"><span>first hit t</span><span class="v" id="v-hit">–</span></div>
+  <div class="row"><span>status</span><span id="v-status">–</span></div>
+  <div class="row"><span>camera inside solid</span><span id="v-inside">–</span></div>
+  <div class="row"><span>line of sight blocked</span><span id="v-los">–</span></div>
+  <div class="row"><span>naive camera inside</span><span id="v-naive">–</span></div>
+  <div id="proof">
+    <p>node audit (bench/result.json): <span class="v" id="v-node">loading…</span></p>
+    <button id="btn-audit">re-run the 4,000-pose audit in this browser</button>
+    <p id="v-browser">idle</p>
+  </div>
+</div>
+<div id="legend">green = constrained position · red ghost = naive fixed-radius position (same yaw/pitch)</div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
