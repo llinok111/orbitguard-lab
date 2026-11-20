@@ -56,8 +56,8 @@ Raw numbers live in `bench/result.json`; every figure above is a rounded copy of
 `bench/verify.mjs` output, and `node bench/bench.mjs` regenerates the timing block.
 
 The speedup is modest because the scene has only 192 triangles — BVH build and traversal overhead
-is a large share at that size. The claim is exactly the measured 6.89×, not a projection. Wall-clock
-numbers are host-specific; `node bench/bench.mjs` prints the numbers for your machine, and the
+is a large share at that size. The claim is exactly the measured 6.89× of the committed run, not a projection; independent
+reruns on the same host landed in 6.3–6.9×. Wall-clock numbers are host-specific; `node bench/bench.mjs` prints the numbers for your machine, and the
 correctness counts (the 0/0 and 369/1868 figures) are deterministic and do not depend on timing.
 
 ## Why the counts are trustworthy
