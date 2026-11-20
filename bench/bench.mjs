@@ -4,7 +4,6 @@ import { buildScene, makePoses, audit, resolveOrbit, digestHex } from '../src/co
 import { resolveOrbitBrute } from '../baseline/naive.mjs';
 
 const poses = makePoses(4000, 11, 1, true);
-const rep = audit(buildScene({ scale: 1 }), poses);
 
 const PASSES = 5;                       // 5 x 20,000 = 100,000 queries per sample
 const QUERIES = 20000 * PASSES;
@@ -23,14 +22,16 @@ function run(kind) {
   return { ms: now() - t0, acc };
 }
 
-// Cold: build the BVH and answer the first query, before any warmup.
+// Process-cold: scene + BVH build and the very first constrained query, before the
+// audit and before any warmup pass. (Node/module startup is outside this timer.)
 const coldT0 = now();
 const scene = buildScene({ scale: 1 });
 resolveOrbit(scene, poses[0].target, poses[0].yaw, poses[0].pitch, poses[0].desired);
 const coldScene = now() - coldT0;
 
+const rep = audit(buildScene({ scale: 1 }), poses);
 const warm = [run('bvh'), run('brute')];
-const coldQuery = { bvh: run('bvh').ms, brute: run('brute').ms };
+const postWarmup = { bvh: run('bvh').ms, brute: run('brute').ms };
 const samples = { bvh: [], brute: [] };
 for (let i = 0; i < 7; i++) { samples.bvh.push(run('bvh').ms); samples.brute.push(run('brute').ms); }
 
@@ -49,8 +50,8 @@ const out = {
   queriesPerSample: QUERIES,
   samplesCount: 7,
   warmup: 2,
-  coldMs: { sceneBuildPlusFirstQuery: coldScene, firstBvhPass: coldQuery.bvh, firstBrutePass: coldQuery.brute },
-  coldIncludes: 'scene build + BVH build + first constrained query',
+  coldMs: { sceneBuildPlusFirstQuery: coldScene, postWarmupBvhPass: postWarmup.bvh, postWarmupBrutePass: postWarmup.brute },
+  coldIncludes: 'scene build + BVH build + first constrained query, timed before the audit and any warmup',
   p95Note: 'nearest-rank over 7 samples, i.e. the maximum sample',
   bvh: b,
   brute: { ...n },
@@ -61,8 +62,8 @@ const out = {
 writeFileSync(new URL('./result.json', import.meta.url), JSON.stringify(out, null, 2) + '\n');
 console.log(JSON.stringify({
   queriesPerSample: QUERIES, samples: 7,
-  bvh: { coldScene: coldScene.toFixed(2), coldQuery: coldQuery.bvh.toFixed(2), median: b.median.toFixed(2), p95max: b.p95.toFixed(2), rsd: (b.rsd * 100).toFixed(2), us: out.perQueryUs.bvh.toFixed(4) },
-  brute: { coldQuery: coldQuery.brute.toFixed(2), median: n.median.toFixed(2), p95max: n.p95.toFixed(2), rsd: (n.rsd * 100).toFixed(2), us: out.perQueryUs.brute.toFixed(4) },
+  bvh: { coldScene: coldScene.toFixed(2), postWarmupPass: postWarmup.bvh.toFixed(2), median: b.median.toFixed(2), p95max: b.p95.toFixed(2), rsd: (b.rsd * 100).toFixed(2), us: out.perQueryUs.bvh.toFixed(4) },
+  brute: { postWarmupPass: postWarmup.brute.toFixed(2), median: n.median.toFixed(2), p95max: n.p95.toFixed(2), rsd: (n.rsd * 100).toFixed(2), us: out.perQueryUs.brute.toFixed(4) },
   speedup: out.speedupMedian.toFixed(2) + 'x',
   audit: { naiveInside: rep.naiveInside, naiveBlocked: rep.naiveBlocked, oursInside: rep.oursInside, oursBlocked: rep.oursBlocked, clamped: rep.clamped }
 }, null, 2));

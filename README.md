@@ -1,6 +1,6 @@
 # orbitguard-lab
 
-**Promise:** on 4,000 random orbit poses, a fixed-radius camera ends up **inside solid geometry 369 times** and **behind an occluder 1,868 times**; this constrained rig is **inside 0/4,000 and occluded 0/4,000**, and 100,000 constrained resolve queries take **220.69 ms** (2.207 µs/query) against **1,461.07 ms** for the brute-force baseline in `baseline/naive.mjs` — **6.62× faster**, median of 7 samples after 2 warmups, RSD 1.89 %.
+**Promise:** on 4,000 random orbit poses, a fixed-radius camera ends up **inside solid geometry 369 times** and **behind an occluder 1,868 times**; this constrained rig is **inside 0/4,000 and occluded 0/4,000**, and 100,000 constrained resolve queries take **220.17 ms** (2.202 µs/query) against **1,516.75 ms** for the brute-force baseline in `baseline/naive.mjs` — **6.89× faster**, median of 7 samples after 2 warmups, RSD 2.25 %.
 
 Upstream: none
 
@@ -9,7 +9,7 @@ Upstream: none
 ```bash
 node tools/gen-sample.mjs        # deterministic scene -> data/scene.json
 node bench/verify.mjs            # 19 assertions, exit 0
-node bench/bench.mjs             # 7 samples + cold start -> bench/result.json
+node bench/bench.mjs             # 7 samples + process-cold build/first query -> bench/result.json
 python3 -m http.server 4173      # open http://localhost:4173 (three r170 via CDN importmap)
 ```
 
@@ -41,11 +41,11 @@ or line-of-sight oracle — those are closed-form / parity tests.
 | Poses needing a clamp | 1,925 | — |
 | Poses refused (target inside a solid) | 0 (explicitly tested separately, A14) | — |
 | Retained-radius ratio (median / mean) | **1.000 / 0.739** | 1.000 / 1.000 but invalid |
-| 100,000 constrained resolves, median | **220.69 ms** = 2.207 µs/query | brute force **1,461.07 ms** = 14.611 µs/query |
-| Cold: scene build + BVH build + first query | **4.07 ms** | no build (brute) |
-| First timed 100k pass | 219.90 ms | 1,442.77 ms |
-| p95 (= max of 7 samples) / stddev | 229.58 ms / 4.18 ms | 1,498.48 ms / 19.85 ms |
-| RSD of the 7 medians | **1.89 %** | 1.35 % |
+| 100,000 constrained resolves, median | **220.17 ms** = 2.202 µs/query | brute force **1,516.75 ms** = 15.168 µs/query |
+| Process-cold: scene + BVH build + first query (before audit/warmup) | **3.70 ms** | no build (brute) |
+| Post-warmup 100k pass | 220.90 ms | 1,502.76 ms |
+| p95 (= max of 7 samples) / stddev | 229.77 ms / 4.99 ms | 1,528.00 ms / 17.47 ms |
+| RSD of the 7 sample timings | **2.25 %** | 1.16 % |
 | Margin slack, every non-fallback clamped pose | ≥ 0.52792 (worst = 0.52792) | — |
 | BVH vs brute, 5,000 random rays | identical hit/miss, max\|Δt\| = **0** | — |
 | Triangle-parity inside test vs closed-form box oracle, 1,000 points (140 inside) | **0 disagreements** | — |
@@ -56,7 +56,7 @@ Raw numbers live in `bench/result.json`; every figure above is a rounded copy of
 `bench/verify.mjs` output, and `node bench/bench.mjs` regenerates the timing block.
 
 The speedup is modest because the scene has only 192 triangles — BVH build and traversal overhead
-is a large share at that size. The claim is exactly the measured 6.62×, not a projection. Wall-clock
+is a large share at that size. The claim is exactly the measured 6.89×, not a projection. Wall-clock
 numbers are host-specific; `node bench/bench.mjs` prints the numbers for your machine, and the
 correctness counts (the 0/0 and 369/1868 figures) are deterministic and do not depend on timing.
 
@@ -89,8 +89,8 @@ correctness counts (the 0/0 and 369/1868 figures) are deterministic and do not d
   bounding-box diagonal. Kernel tolerances are local-relative too (`|det| ≤ 1e-12·|e1||e2|`, segment
   cutoff `len·(1−1e-9)`), so the classification is scale-free under uniform scaling; non-uniform
   scale is out of scope.
-- BVH is a median-split AABB tree rebuilt per scene. The 4.07 ms cold number covers scene + BVH
-  build + the first query; the 100k-query timed passes exclude the build.
+- BVH is a median-split AABB tree rebuilt per scene. The 3.70 ms number covers scene + BVH build
+  and the first query, timed before the audit and any warmup; the 100k-query passes exclude it.
 
 ## 本轮创新
 
