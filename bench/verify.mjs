@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import {
   buildScene, makePoses, audit, resolveOrbit, resolveNaive, cameraDir,
   raycastBVH, raycastBrute, rayTriangle, pointInMesh, pointInBoxes,
-  segmentHitsMesh, sha256HexFromArray
+  segmentHitsMesh, digestHex
 } from '../src/core.mjs';
 import { resolveOrbitBrute } from '../baseline/naive.mjs';
 
@@ -19,8 +19,8 @@ const minR = 0.005 * scene.diag;
 
 // A1 deterministic build
 const scene2 = buildScene({ scale: 1 });
-check('A1 scene-build-deterministic', sha256HexFromArray(scene.tris) === sha256HexFromArray(scene2.tris) &&
-  scene.tris.length === scene2.tris.length, `hash=${sha256HexFromArray(scene.tris)} tris=${scene.tris.length / 9}`);
+check('A1 scene-build-deterministic', digestHex(scene.tris) === digestHex(scene2.tris) &&
+  scene.tris.length === scene2.tris.length, `hash=${digestHex(scene.tris)} tris=${scene.tris.length / 9}`);
 
 // A2 topology of the analytic scene
 check('A2 scene-shape', scene.boxes.length === 16 && scene.tris.length / 9 === 192,
@@ -51,12 +51,12 @@ check('A5 bvh-vs-brute-raymatch', mism === 0 && maxDelta <= 1e-12 * scene.diag,
 // A6 triangle parity inside test agrees with closed-form box oracle
 let insideMism = 0, insideHits = 0;
 const rng2 = (() => { let a = 9; return () => { a = (Math.imul(a ^ (a >>> 15), a | 1) + 0x6d2b79f5) >>> 0; return a / 4294967296; }; })();
-for (let i = 0; i < 500; i++) {
-  const x = (rng2() - 0.5) * 40, y = rng2() * 8, z = (rng2() - 0.5) * 40;
+for (let i = 0; i < 1000; i++) {
+  const x = (rng2() - 0.5) * 44, y = -1.2 + rng2() * 9.4, z = (rng2() - 0.5) * 44;
   if (pointInMesh(scene.tris, x, y, z) !== pointInBoxes(scene.boxes, x, y, z)) insideMism++;
   if (pointInBoxes(scene.boxes, x, y, z)) insideHits++;
 }
-check('A6 parity-vs-box-oracle', insideMism === 0, `points=500 oracle-inside=${insideHits} disagreements=${insideMism}`);
+check('A6 parity-vs-box-oracle', insideMism === 0, `points=1000 oracle-inside=${insideHits} disagreements=${insideMism}`);
 
 // A7 free pose keeps the requested radius untouched
 const freeT = [0, 2, 0];
@@ -117,17 +117,34 @@ const losBad = segmentHitsMesh(scene.tris, 0, 2, 0, 25, 2, 0);
 const losOk = segmentHitsMesh(scene.tris, 0, 2, 0, 5, 2, 0);
 check('A15 los-oracle-sanity', losBad === true && losOk === false, `through-wall=${losBad} open=${losOk}`);
 
-// A16 scale invariance: 1e-3, 1, 1e3 must classify identically
-const scaled = [1e-3, 1, 1e3].map(s => {
-  const sc = buildScene({ scale: s });
-  const ps = makePoses(500, 13, s, true);
-  return audit(sc, ps);
+// A16 scale invariance across 12 orders of magnitude, per-pose and per-counter.
+const scales = [1e-6, 1e-3, 1, 1e3, 1e6];
+const refPoses = makePoses(200, 17, 1, true);
+const ref = resolveOrbit(buildScene({ scale: 1 }), refPoses[0].target, refPoses[0].yaw, refPoses[0].pitch, refPoses[0].desired);
+const refRatios = refPoses.map(p => {
+  const sc = buildScene({ scale: 1 });
+  const r = resolveOrbit(sc, p.target, p.yaw, p.pitch, p.desired);
+  return r.ok ? r.radius / p.desired : -1;
 });
-const same = scaled.every(r => r.oursInside === 0 && r.oursBlocked === 0 &&
-  r.naiveInside === scaled[1].naiveInside && r.naiveBlocked === scaled[1].naiveBlocked &&
-  r.clamped === scaled[1].clamped && r.degraded === scaled[1].degraded);
-check('A16 scale-invariance', same,
-  scaled.map(r => `${r.oursInside}/${r.oursBlocked}/${r.naiveInside}/${r.naiveBlocked}/${r.clamped}`).join(' | '));
+const refRep = audit(buildScene({ scale: 1 }), refPoses);
+let scaleMaxDiff = 0, scaleReasonDiff = 0, scaleCountDiff = 0;
+const scaleRows = scales.map(s => {
+  const sc = buildScene({ scale: s });
+  const ps = makePoses(200, 17, s, true);
+  const rep2 = audit(sc, ps);
+  ps.forEach((p, i) => {
+    const r = resolveOrbit(sc, p.target, p.yaw, p.pitch, p.desired);
+    const ratio = r.ok ? r.radius / p.desired : -1;
+    scaleMaxDiff = Math.max(scaleMaxDiff, Math.abs(ratio - refRatios[i]));
+    const refR = resolveOrbit(buildScene({ scale: 1 }), refPoses[i].target, refPoses[i].yaw, refPoses[i].pitch, refPoses[i].desired);
+    if ((refR.reason === 'free') !== (r.reason === 'free') || refR.clamped !== r.clamped) scaleReasonDiff++;
+  });
+  if (rep2.oursInside || rep2.oursBlocked || rep2.naiveInside !== refRep.naiveInside ||
+      rep2.naiveBlocked !== refRep.naiveBlocked || rep2.clamped !== refRep.clamped || rep2.degraded !== refRep.degraded) scaleCountDiff++;
+  return `${s}:${rep2.oursInside}/${rep2.oursBlocked}/${rep2.naiveInside}/${rep2.naiveBlocked}/${rep2.clamped}`;
+});
+check('A16 scale-invariance', scaleCountDiff === 0 && scaleReasonDiff === 0 && scaleMaxDiff <= 1e-12,
+  `${scaleRows.join(' | ')} maxRatioDiff=${scaleMaxDiff.toExponential(2)} reasonDiff=${scaleReasonDiff}`);
 
 // A17 no NaN / no negative radius across the audit
 let nan = 0;
@@ -140,7 +157,7 @@ check('A17 finite-outputs', nan === 0, `poses=${poses.length} nonFinite=${nan}`)
 
 // A18 generated data file matches the in-memory scene
 const data = JSON.parse(readFileSync(new URL('../data/scene.json', import.meta.url), 'utf8'));
-check('A18 sample-file-matches-core', data.triangleCount === scene.tris.length / 9 && data.hash === sha256HexFromArray(scene.tris) &&
+check('A18 sample-file-matches-core', data.triangleCount === scene.tris.length / 9 && data.hash === digestHex(scene.tris) &&
   data.boxCount === scene.boxes.length,
   `file tris=${data.triangleCount} hash=${data.hash}`);
 

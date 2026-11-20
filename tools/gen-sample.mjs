@@ -1,6 +1,6 @@
 // tools/gen-sample.mjs — deterministic scene export. Running twice is byte-identical.
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { buildScene, sha256HexFromArray } from '../src/core.mjs';
+import { buildScene, digestHex } from '../src/core.mjs';
 
 const scene = buildScene({ scale: 1 });
 const payload = {
@@ -10,7 +10,7 @@ const payload = {
   triangleCount: scene.tris.length / 9,
   boxCount: scene.boxes.length,
   bboxDiag: scene.diag,
-  hash: sha256HexFromArray(scene.tris),
+  hash: digestHex(scene.tris),
   boxes: scene.boxes,
   triangles: Array.from(scene.tris)
 };

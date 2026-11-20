@@ -1,0 +1,1 @@
+{"direction":"three-d","ts":"2026-11-20T02:35:00Z","upstream":null,"repo":"llinok111/orbitguard-lab","metric":"camera: 0/4000 inside + 0/4000 occluded vs naive 369/1868; 100k queries 2.267us vs 14.99us (6.61x)","status":"published","reason":"constrained orbit camera with node/browser recomputable audit, 19/19 assertions","checks":"G1-G9 pass; innovation B; post-publish 3/3"}

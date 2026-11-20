@@ -1,11 +1,10 @@
 // bench/bench.mjs — 100k orbit-resolve queries, BVH vs the brute-force baseline.
 import { writeFileSync } from 'node:fs';
-import { buildScene, makePoses, audit, resolveOrbit } from '../src/core.mjs';
+import { buildScene, makePoses, audit, resolveOrbit, digestHex } from '../src/core.mjs';
 import { resolveOrbitBrute } from '../baseline/naive.mjs';
 
-const scene = buildScene({ scale: 1 });
 const poses = makePoses(4000, 11, 1, true);
-const rep = audit(scene, poses);
+const rep = audit(buildScene({ scale: 1 }), poses);
 
 const PASSES = 5;                       // 5 x 20,000 = 100,000 queries per sample
 const QUERIES = 20000 * PASSES;
@@ -24,8 +23,14 @@ function run(kind) {
   return { ms: now() - t0, acc };
 }
 
+// Cold: build the BVH and answer the first query, before any warmup.
+const coldT0 = now();
+const scene = buildScene({ scale: 1 });
+resolveOrbit(scene, poses[0].target, poses[0].yaw, poses[0].pitch, poses[0].desired);
+const coldScene = now() - coldT0;
+
 const warm = [run('bvh'), run('brute')];
-const cold = { bvh: run('bvh').ms, brute: run('brute').ms };
+const coldQuery = { bvh: run('bvh').ms, brute: run('brute').ms };
 const samples = { bvh: [], brute: [] };
 for (let i = 0; i < 7; i++) { samples.bvh.push(run('bvh').ms); samples.brute.push(run('brute').ms); }
 
@@ -39,12 +44,14 @@ const stat = (a) => {
 };
 const b = stat(samples.bvh), n = stat(samples.brute);
 const out = {
-  scene: { boxes: scene.boxes.length, triangles: scene.tris.length / 9, bboxDiag: scene.diag, hash: '3107125d' },
+  scene: { boxes: scene.boxes.length, triangles: scene.tris.length / 9, bboxDiag: scene.diag, hash: digestHex(scene.tris) },
   audit: rep,
   queriesPerSample: QUERIES,
   samplesCount: 7,
   warmup: 2,
-  coldMs: { bvh: cold.bvh, brute: cold.brute },
+  coldMs: { sceneBuildPlusFirstQuery: coldScene, firstBvhPass: coldQuery.bvh, firstBrutePass: coldQuery.brute },
+  coldIncludes: 'scene build + BVH build + first constrained query',
+  p95Note: 'nearest-rank over 7 samples, i.e. the maximum sample',
   bvh: b,
   brute: { ...n },
   perQueryUs: { bvh: b.median * 1000 / QUERIES, brute: n.median * 1000 / QUERIES },
@@ -54,8 +61,8 @@ const out = {
 writeFileSync(new URL('./result.json', import.meta.url), JSON.stringify(out, null, 2) + '\n');
 console.log(JSON.stringify({
   queriesPerSample: QUERIES, samples: 7,
-  bvh: { cold: cold.bvh.toFixed(2), median: b.median.toFixed(2), p95: b.p95.toFixed(2), rsd: (b.rsd * 100).toFixed(2), us: out.perQueryUs.bvh.toFixed(4) },
-  brute: { cold: cold.brute.toFixed(2), median: n.median.toFixed(2), p95: n.p95.toFixed(2), rsd: (n.rsd * 100).toFixed(2), us: out.perQueryUs.brute.toFixed(4) },
+  bvh: { coldScene: coldScene.toFixed(2), coldQuery: coldQuery.bvh.toFixed(2), median: b.median.toFixed(2), p95max: b.p95.toFixed(2), rsd: (b.rsd * 100).toFixed(2), us: out.perQueryUs.bvh.toFixed(4) },
+  brute: { coldQuery: coldQuery.brute.toFixed(2), median: n.median.toFixed(2), p95max: n.p95.toFixed(2), rsd: (n.rsd * 100).toFixed(2), us: out.perQueryUs.brute.toFixed(4) },
   speedup: out.speedupMedian.toFixed(2) + 'x',
   audit: { naiveInside: rep.naiveInside, naiveBlocked: rep.naiveBlocked, oursInside: rep.oursInside, oursBlocked: rep.oursBlocked, clamped: rep.clamped }
 }, null, 2));

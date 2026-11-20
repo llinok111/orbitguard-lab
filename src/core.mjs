@@ -299,8 +299,8 @@ export function audit(scene, poses) {
   return { poses: poses.length, naiveInside, naiveBlocked, oursInside, oursBlocked, clamped, degraded, invalid, free, medianRatio: median, meanRatio: retainedN ? sumRetained / retainedN : 0 };
 }
 
-export function sha256HexFromArray(arr) {
-  // Deterministic FNV-1a over float64 bits, exposed for the generator/verify path.
+export function digestHex(arr) {
+  // Deterministic 32-bit FNV-1a over float64 bits (not a cryptographic hash).
   const buf = new DataView(new ArrayBuffer(8));
   let h = 0x811c9dc5n;
   for (let i = 0; i < arr.length; i++) {

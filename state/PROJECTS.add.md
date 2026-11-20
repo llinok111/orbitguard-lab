@@ -1,0 +1,1 @@
+| `orbitguard-lab` | JavaScript | 2026-11-20 | 2026-11-20 | 0 | Constrained orbit camera: 0/4000 poses inside geometry and 0/4000 line-of-sight blocked vs naive 369/1868; 100k resolves 2.267 µs vs 14.99 µs (6.61×); node/browser same core, 19/19 assertions |
